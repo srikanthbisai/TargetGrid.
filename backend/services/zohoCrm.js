@@ -1,34 +1,41 @@
-const axios = require('axios');
+const express = require('express');
+const router = express.Router();
+const zohoCrm = require('../services/zohoCrm'); // Import Zoho CRM integration service
 
-const ZOHO_CRM_BASE_URL = 'https://www.zohoapis.com/crm/v2/';
-const ZOHO_CLIENT_ID = 'your_client_id';
-const ZOHO_CLIENT_SECRET = 'your_client_secret';
-const ZOHO_REDIRECT_URI = 'http://localhost:5000/auth/callback';
-const ZOHO_REFRESH_TOKEN = 'your_refresh_token'; // You'll need to obtain this from the Zoho authorization process
+// Add a new customer
+router.post('/', async (req, res) => {
+  const customer = new Customer(req.body);
+  try {
+    const savedCustomer = await customer.save();
+    res.status(201).json(savedCustomer);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
 
-// Function to get access token using refresh token
-const getAccessToken = async () => {
-  const response = await axios.post('https://accounts.zoho.com/oauth/v2/auth?response_type=code&client_id=1000.99H07MR6NOCUEX23N186J4J7F9DLTO&scope=ZohoCRM.modules.ALL,ZohoCRM.settings.ALL,ZohoCRM.users.ALL,ZohoCRM.org.ALL&redirect_uri=http://localhost:5000/auth/callback&access_type=offline');
-  return response.data.access_token;
-};
+// Get all customers
+router.get('/', async (req, res) => {
+  try {
+    const customers = await Customer.find();
+    res.json(customers);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
-const pushToCrm = async (customerData) => {
-  const accessToken = await getAccessToken();
+// Push to CRM
+router.post('/push-to-crm', async (req, res) => {
+  try {
+    const customerData = req.body; 
 
-  const response = await axios.post(
-    `${ZOHO_CRM_BASE_URL}Leads`,
-    {
-      data: [customerData],
-      trigger: ['approval', 'workflow', 'blueprint']
-    },
-    {
-      headers: {
-        Authorization: `Zoho-oauthtoken ${accessToken}`
-      }
-    }
-  );
+    const response = await zohoCrm.pushToCrm(customerData);
+    res.json(response);
+  } catch (err) {
+    console.error('Error pushing customer to Zoho CRM:', err);
 
-  return response.data;
-};
 
-module.exports = { pushToCrm };
+    res.status(500).json({ message: 'Error pushing customer to CRM' });
+  }
+});
+
+module.exports = router;
